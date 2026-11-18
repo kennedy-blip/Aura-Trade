@@ -1,0 +1,27 @@
+name: Verify hosted deployment
+on:
+  push:
+    paths:
+      - '.github/workflows/verify-deployment.yml'
+      - 'scripts/verify-deployment.mjs'
+  workflow_dispatch:
+    inputs:
+      url:
+        description: Public HTTPS deployment URL
+        type: string
+        default: https://auratrade-east-africa.vercel.app
+permissions:
+  contents: read
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Verify deep link, market API, offline shell, and APK checksum
+        env:
+          AURA_DEPLOYMENT_URL: ${{ inputs.url || 'https://auratrade-east-africa.vercel.app' }}
+        run: node scripts/verify-deployment.mjs "$AURA_DEPLOYMENT_URL"
