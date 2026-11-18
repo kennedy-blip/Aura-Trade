@@ -2,8 +2,7 @@ name: Verify hosted deployment
 on:
   push:
     paths:
-      - '.github/workflows/verify-deployment.yml'
-      - 'scripts/verify-deployment.mjs'
+      - 'public/app/android.json'
   workflow_dispatch:
     inputs:
       url:
@@ -21,7 +20,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Verify deep link, market API, offline shell, and APK checksum
+      - name: Verify market pulse, research, native CORS, offline shell, and APK checksum
         env:
           AURA_DEPLOYMENT_URL: ${{ inputs.url || 'https://auratrade-east-africa.vercel.app' }}
         run: node scripts/verify-deployment.mjs "$AURA_DEPLOYMENT_URL"

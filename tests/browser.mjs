@@ -21,6 +21,7 @@ if (!process.env.AURA_CHROMIUM) {
   assert.equal(extract.status, 0, 'extract Chromium shared libraries')
 }
 process.env.AURA_FRED_ENABLED = 'false'
+process.env.AURA_COMMUNITY_CRYPTO = 'false'
 const server = await preview({ preview: { host: '127.0.0.1', port: 4179, strictPort: true } })
 let browser
 try {
@@ -34,6 +35,36 @@ try {
   const byButton = (name) => page.getByRole('button', { name, exact: true })
   const byHeading = (name) => page.getByRole('heading', { name, exact: true })
   const nav = (name) => page.getByRole('complementary').getByRole('link', { name, exact: true }).first()
+  const sampleAt = Date.now() - 45_000
+  let pulseCount = 0, bumped = false, rejectGroq = false
+  const mockKey = 'gsk_' + 'f'.repeat(44)
+  const requested = []
+  page.on('request', (request) => {
+    if (request.postData()?.includes(mockKey)) requested.push(request.url())
+  })
+  await page.route('**/api/pulse**', async (route) => {
+    const query = new URL(route.request().url()).searchParams
+    const id = query.get('history')
+    if (id && id !== 'btc-usd') { await route.continue(); return }
+    if (id) {
+      const interval = query.get('interval')
+      const points = Array.from({ length: 60 }, (_, i) => {
+        const at = new Date(sampleAt - (60 - i) * (interval === '1m' ? 60_000 : 86400_000)).toISOString()
+        return [interval === '1m' ? at : at.slice(0, 10), 62900 + i * 18 + i % 4 * 5]
+      })
+      await route.fulfill({ json: { history: { id, points, name: 'Test market source', url: 'https://prices.example/btc', cadence: interval === '1m' ? 'Minute reference rates' : 'Daily reference rates', archived: false } } })
+      return
+    }
+    pulseCount++
+    const price = bumped ? 64200 : 64020
+    await route.fulfill({ json: { checkedAt: new Date().toISOString(), interval: 15000, sources: [{ id: 'community', state: 'ok' }, { id: 'licensed', state: 'off' }], quotes: [{ id: 'btc-usd', at: new Date(sampleAt + (bumped ? 16_000 : 0)).toISOString(), price, health: 'ok', provider: 'community', mode: 'indicative', source: 'Test market source', url: 'https://prices.example/btc' }] } })
+  })
+  await page.route('https://api.groq.com/openai/v1/chat/completions', async (route) => {
+    const headers = { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'authorization, content-type', 'access-control-allow-methods': 'POST, OPTIONS' }
+    if (route.request().method() === 'OPTIONS') { await route.fulfill({ status: 204, headers }); return }
+    assert.equal(route.request().headers().authorization, `Bearer ${mockKey}`)
+    await route.fulfill({ status: rejectGroq ? 429 : 200, headers, json: rejectGroq ? { error: { message: 'Limit reached' } } : { choices: [{ message: { content: 'The cited evidence should be treated as observations, not execution prices.' } }] } })
+  })
   await page.goto(url)
   await byHeading('Market Terminal').waitFor()
   await page.evaluate(() => navigator.serviceWorker.ready)
@@ -59,6 +90,41 @@ try {
   await byButton('Reset shocks').click()
   assert.equal(await page.getByRole('slider', { name: /EPRA fuel/ }).inputValue(), '0')
 
+  await nav('Market Pulse').click()
+  await byHeading('Market Pulse').waitFor()
+  await page.locator('.pulse-quote').getByText('64,020.00 USD', { exact: true }).waitFor()
+  await byHeading('Conditional outlook').waitFor()
+  await page.getByText('Upper range break', { exact: true }).waitFor()
+  await byButton('1M').click()
+  await page.getByText(/Daily reference rates ·/).waitFor()
+  await page.getByLabel('Price target').fill('64100')
+  await byButton('Add alert').click()
+  await page.getByText('Market alert armed.', { exact: true }).waitFor()
+  await byButton('Check quotes').click()
+  await byButton('Check quotes').waitFor()
+  await page.waitForFunction(async () => {
+    return new Promise((resolve, reject) => {
+      const open = indexedDB.open('auratrade-east-africa')
+      open.onerror = () => reject(open.error)
+      open.onsuccess = () => {
+        const connection = open.result
+        const rows = connection.transaction('marketRules').objectStore('marketRules').getAll()
+        rows.onsuccess = () => { connection.close(); resolve(rows.result.some((row) => row.scope === 'local' && row.latest?.price === 64020)) }
+        rows.onerror = () => { connection.close(); reject(rows.error) }
+      }
+    })
+  })
+  const beforePulse = pulseCount
+  bumped = true
+  await page.locator('.pulse-alert').getByText('BTC/USD crossed above 64,100.00').waitFor({ timeout: 20_000 })
+  assert.ok(pulseCount > beforePulse, '15-second foreground refresh made a new request')
+  await byButton('Mark alerts read').click()
+  await page.locator('.pulse-alert:not(.unread)').waitFor()
+  await byButton('Kenya').click()
+  await page.getByRole('button', { name: /NSE 20 Kenya/ }).click()
+  await page.locator('.pulse-quote').getByText('Dated reference', { exact: true }).waitFor()
+  await page.getByText('No fresh quote for this instrument.', { exact: false }).waitFor()
+
   await nav('AI Research').click()
   await byHeading('Aura Research').waitFor()
   await page.getByLabel('Research question').fill('How do EPRA fuel prices affect NSE industrials?')
@@ -66,6 +132,29 @@ try {
   await byHeading('From fuel caps to margins and FX').waitFor()
   const researchEvidence = page.getByRole('link', { name: /EPRA Petroleum Price Review/ })
   assert.match(await researchEvidence.getAttribute('href'), /epra\.go\.ke/)
+
+  await page.getByLabel('Answer mode').selectOption('device')
+  await byButton('Set up Groq key').click()
+  await page.getByLabel('Groq API key').fill(mockKey)
+  await page.getByRole('checkbox', { name: 'Remember on this device' }).check()
+  await byButton('Save key').click()
+  await byButton('Test Groq connection').click()
+  await page.getByText('Groq replied successfully.', { exact: true }).waitFor()
+  await page.getByLabel('Research question').fill('Explain BTC volatility.')
+  await byButton('Send').click()
+  await byHeading('Groq research brief').waitFor()
+  await page.reload()
+  await byHeading('Groq research brief').waitFor()
+  assert.equal(await page.getByLabel('Answer mode').inputValue(), 'device')
+  rejectGroq = true
+  await page.getByLabel('Research question').fill('How is GDP related to tea exports?')
+  await byButton('Send').click()
+  await byHeading('Real activity and export flows').waitFor()
+  await page.getByText(/Groq’s usage limit was reached.*Showing local research instead/).waitFor()
+  assert.deepEqual(requested, [], 'the key does not appear in request payloads')
+  await byButton('Manage Groq key').click()
+  await byButton('Remove key').click()
+  assert.equal(await page.getByLabel('Answer mode').inputValue(), 'local')
   await byButton('Event studies').click()
   await page.getByRole('button', { name: /June 2025 · CBK cuts by 25 bps/ }).click()
   await page.getByText('9.75% CBR', { exact: true }).waitFor()
@@ -125,6 +214,11 @@ try {
   await mobile.getByRole('link', { name: 'Terminal', exact: true }).click()
   await byHeading('Market Terminal').waitFor()
   assert.ok(await widths(), 'mobile does not overflow')
+  await mobile.getByRole('link', { name: 'Pulse', exact: true }).click()
+  await byHeading('Market Pulse').waitFor()
+  assert.ok(await widths(), 'mobile Market Pulse does not overflow')
+  await mobile.getByRole('link', { name: 'Terminal', exact: true }).click()
+  await byHeading('Market Terminal').waitFor()
   await context.setOffline(true)
   await page.reload()
   await byHeading('Market Terminal').waitFor()
@@ -135,7 +229,7 @@ try {
   await page.getByRole('dialog').getByRole('link', { name: 'AI Research', exact: false }).click()
   await byHeading('From fuel caps to margins and FX').waitFor()
   assert.deepEqual(errors, [], 'no unhandled browser errors')
-  console.log('Browser smoke passed: dashboard, chart, search, shock lab, research, paper fills, STK flow, taxation, roles, themes, APK center, and offline reload.')
+  console.log('Browser smoke passed: dashboard, chart, scope search, sourced history, 15s pulse and price alert, Groq success and fallback, paper fills, STK flow, taxation, roles, themes, APK center, and offline reload.')
 } finally {
   await browser?.close()
   await new Promise((resolve) => server.httpServer.close(resolve))
