@@ -1,0 +1,109 @@
+name: Android package
+on:
+  push:
+    paths:
+      - '.github/workflows/android.yml'
+      - 'android/**'
+      - 'scripts/verify-android-launch.sh'
+  workflow_dispatch:
+    inputs:
+      package_type:
+        description: 'Preview or signed release'
+        type: choice
+        options: [preview, release]
+        default: preview
+      api_base_url:
+        description: Hosted HTTPS API origin (public; falls back to AURA_API_BASE_URL)
+        type: string
+      supabase_url:
+        description: Supabase project URL (public; falls back to AURA_SUPABASE_URL)
+        type: string
+      supabase_publishable_key:
+        description: Only the Supabase publishable key, never a secret
+        type: string
+permissions:
+  contents: read
+jobs:
+  apk:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    # The checked-in public preview uses publishable connection values only.
+    # Repo variables or manual inputs take precedence for other deployments.
+    env:
+      VITE_API_BASE_URL: ${{ inputs.api_base_url || vars.AURA_API_BASE_URL || (github.repository == 'kennedy-blip/Aura-Trade' && 'https://auratrade-east-africa.vercel.app') || '' }}
+      VITE_SUPABASE_URL: ${{ inputs.supabase_url || vars.AURA_SUPABASE_URL || (github.repository == 'kennedy-blip/Aura-Trade' && 'https://yyihtothexvluuajelmi.supabase.co') || '' }}
+      VITE_SUPABASE_PUBLISHABLE_KEY: ${{ inputs.supabase_publishable_key || vars.AURA_SUPABASE_PUBLISHABLE_KEY || (github.repository == 'kennedy-blip/Aura-Trade' && 'sb_publishable_m15KWmpH3SDX9CSLsqCkGw_PTMxwDmR') || '' }}
+      VITE_ENABLE_PREVIEW_ROLES: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+      - name: Install Android SDK components
+        run: |
+          set -euo pipefail
+          if [[ ! -f "$ANDROID_HOME/platforms/android-35/android.jar" || ! -x "$ANDROID_HOME/build-tools/35.0.0/apksigner" ]]; then
+            manager=$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)
+            "$manager" --sdk_root="$ANDROID_HOME" 'platforms;android-35' 'build-tools;35.0.0'
+          fi
+          test -f "$ANDROID_HOME/platforms/android-35/android.jar"
+          test -x "$ANDROID_HOME/build-tools/35.0.0/apksigner"
+      - run: npm ci
+      - run: npm test
+      - name: Package preview
+        if: inputs.package_type != 'release'
+        run: npm run android:preview
+      - name: Package signed release
+        if: inputs.package_type == 'release'
+        env:
+          AURA_SIGNING_KEY_B64: ${{ secrets.AURA_SIGNING_KEY_B64 }}
+          AURA_KEYSTORE_PASSWORD: ${{ secrets.AURA_KEYSTORE_PASSWORD }}
+          AURA_KEY_ALIAS: ${{ secrets.AURA_KEY_ALIAS }}
+          AURA_KEY_PASSWORD: ${{ secrets.AURA_KEY_PASSWORD }}
+          VITE_ENABLE_PREVIEW_ROLES: 'false'
+        run: |
+          set -euo pipefail
+          : "${AURA_SIGNING_KEY_B64:?Set the Android release signing secret}"
+          export AURA_KEYSTORE="$RUNNER_TEMP/auratrade-release.jks"
+          trap 'rm -f "$AURA_KEYSTORE"' EXIT
+          umask 077
+          printf '%s' "$AURA_SIGNING_KEY_B64" | base64 --decode > "$AURA_KEYSTORE"
+          npm run android:release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: auratrade-android-${{ inputs.package_type || 'preview' }}
+          path: |
+            artifacts/*.apk
+            public/app/android.json
+          if-no-files-found: error
+  android-launch:
+    if: inputs.package_type != 'release'
+    needs: apk
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: auratrade-android-preview
+          path: package
+      - name: Enable hardware acceleration
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Install and launch the preview in Android
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: true
+          script: bash scripts/verify-android-launch.sh package/artifacts/auratrade-east-africa-preview.apk

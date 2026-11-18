@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">AuraTrade East Africa</string>
+    <string name="title_activity_main">AuraTrade East Africa</string>
+    <string name="package_name">africa.auratrade.terminal</string>
+    <string name="custom_url_scheme">africa.auratrade.terminal</string>
+</resources>
