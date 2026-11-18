@@ -4,6 +4,7 @@ on:
     paths:
       - '.github/workflows/android.yml'
       - 'android/**'
+      - 'scripts/verify-android-launch.sh'
   workflow_dispatch:
     inputs:
       package_type:
@@ -87,6 +88,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 18
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           name: auratrade-android-preview
@@ -104,12 +106,4 @@ jobs:
           arch: x86_64
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
-          script: |
-            adb install package/artifacts/auratrade-east-africa-preview.apk
-            adb shell am start -W -n africa.auratrade.terminal.preview/africa.auratrade.terminal.MainActivity
-            for attempt in {1..12}; do
-              if adb shell uiautomator dump /sdcard/aura-ui.xml && adb shell cat /sdcard/aura-ui.xml | grep -q 'Market Terminal'; then exit 0; fi
-              sleep 2
-            done
-            adb logcat -d -s AndroidRuntime Capacitor chromium
-            exit 1
+          script: bash scripts/verify-android-launch.sh package/artifacts/auratrade-east-africa-preview.apk

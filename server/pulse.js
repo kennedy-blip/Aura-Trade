@@ -111,11 +111,11 @@ export async function history(id, interval = '1d', env = process.env) {
   const item = instruments[id]
   if (item.coin && env.AURA_COMMUNITY_CRYPTO === 'true') {
     const result = await refresh(`community-history-${id}-${interval}`, interval === '1m' ? 45_000 : 30 * 60_000, async () => {
-      const url = metricsUrl(item.coin, interval, { page_size: interval === '1m' ? '120' : '365', paging_from: 'end' })
+      const url = metricsUrl(item.coin, interval, { ...(interval === '1d' ? { metrics: 'PriceUSD' } : {}), page_size: interval === '1m' ? '120' : '365', paging_from: 'end' })
       const payload = JSON.parse(await providerText(url, 5000, 100_000))
-      const points = interval === '1m' ? closeSeries(referenceRates(payload).filter((row) => row.id === id).map((item) => [item.at, item.price])) : normalizeDaily(payload.data?.filter?.((row) => row?.asset === item.coin && typeof row.time === 'string' && /T00:00:00(?:\.0+)?Z$/.test(row.time)).map((row) => [row.time.slice(0, 10), Number(row.ReferenceRateUSD)]))
+      const points = interval === '1m' ? closeSeries(referenceRates(payload).filter((row) => row.id === id).map((item) => [item.at, item.price])) : normalizeDaily(payload.data?.filter?.((row) => row?.asset === item.coin && typeof row.time === 'string' && /T00:00:00(?:\.0+)?Z$/.test(row.time)).map((row) => [row.time.slice(0, 10), Number(row.PriceUSD)]))
       if (points.length < 2) throw new Error('No dated series.')
-      return { id, points, name: metricsSource, url: CM_SOURCE, cadence: interval === '1m' ? 'Minute reference rates' : 'Daily reference rates · 00:00 UTC', archived: false }
+      return { id, points, name: metricsSource, url: CM_SOURCE, cadence: interval === '1m' ? 'Minute reference rates' : 'Daily closes · UTC', archived: false }
     })
     if (result.data) return result.data
   }
