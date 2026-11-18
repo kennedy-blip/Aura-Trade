@@ -38,19 +38,33 @@ const FILES = ${JSON.stringify(precache)};
 self.addEventListener('install', event => event.waitUntil((async () => {
   const cache = await caches.open(CACHE);
   await cache.addAll(FILES.map(file => file.startsWith('/assets/') ? file : new Request(file, { cache: 'reload' })));
+  await self.skipWaiting();
 })()));
+const olderCaches = async () => (await caches.keys()).filter(key => key.startsWith('aura-shell-') && key !== CACHE);
 self.addEventListener('activate', event => event.waitUntil((async () => {
-  await Promise.all((await caches.keys()).filter(key => key.startsWith('aura-shell-') && key !== CACHE).map(key => caches.delete(key)));
+  // Keep the last immutable chunks for a tab that is still running the old UI.
+  await Promise.all((await olderCaches()).slice(0, -1).map(key => caches.delete(key)));
   await self.clients.claim();
 })()));
+async function assetResponse(request, path) {
+  const response = await caches.match(path, { cacheName: CACHE });
+  if (response) return response;
+  if (path.startsWith('/assets/')) {
+    for (const cacheName of (await olderCaches()).reverse()) {
+      const previous = await caches.match(path, { cacheName });
+      if (previous) return previous;
+    }
+  }
+  return fetch(request);
+}
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
   if (event.request.method !== 'GET' || url.origin !== self.location.origin || url.pathname.startsWith('/api/') || url.pathname.startsWith('/app/') || url.pathname === '/auth/callback') return;
   if (event.request.mode === 'navigate') {
     // A running installation must revalidate the web shell when opening a page.
     event.respondWith(fetch(event.request, { cache: 'no-cache' }).catch(() => caches.open(CACHE).then(cache => cache.match('/index.html'))));
-  } else if (url.pathname !== '/index.html' && FILES.includes(url.pathname)) {
-    event.respondWith(caches.open(CACHE).then(cache => cache.match(url.pathname)).then(response => response || fetch(event.request)));
+  } else if (url.pathname.startsWith('/assets/') || (url.pathname !== '/index.html' && FILES.includes(url.pathname))) {
+    event.respondWith(assetResponse(event.request, url.pathname));
   }
 });\n`)
     },
