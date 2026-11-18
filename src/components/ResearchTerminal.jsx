@@ -31,6 +31,7 @@ export default function ResearchTerminal({ focus, navigate }) {
   const [text, setText] = useState('')
   const [pending, setPending] = useState(false)
   const [confirm, setConfirm] = useState(false)
+  const [setupRequest, setSetupRequest] = useState(0)
   const messages = useLiveQuery(() => db.messages.where('scope').equals(scope).reverse().sortBy('at').then((items) => items.slice(-100)), [scope], [])
   const feed = useRef(null), input = useRef(null), lastFocus = useRef(null), lock = useRef(false)
   const ask = useCallback(async (value, useAgent) => {
@@ -73,7 +74,13 @@ export default function ResearchTerminal({ focus, navigate }) {
   }, [focus])
   useEffect(() => { if (feed.current) feed.current.scrollTo({ top: feed.current.scrollHeight, behavior: 'auto' }) }, [messages?.length, pending, tab])
   const ready = tab === 'Analyst chat'
-  return <div className="module-page"><SectionHeading title="Aura Research" description="Ask, compare and verify. Four specialist agents, grounded in dated evidence." eyebrow="MULTI-AGENT INTELLIGENCE" icon="sparkle"><a href="#research-connection" className="button secondary" onClick={(event) => { event.preventDefault(); setTab('Analyst chat'); requestAnimationFrame(() => document.getElementById('research-connection')?.scrollIntoView({ block: 'center' })) }}>Groq setup</a><span className="ai-badge"><i/> {!online || researchConnection.mode === 'local' ? 'LOCAL RESEARCH' : researchConnection.mode === 'device' ? 'GROQ · MY KEY' : 'GROQ · VERCEL'}</span></SectionHeading><div className="page-tabs"><Tabs options={['Analyst chat', 'Event studies']} value={tab} onChange={setTab} label="Research mode"/>{ready && !!messages.length && <button type="button" className="button secondary" onClick={() => setConfirm(true)} disabled={pending}><Trash2 size={14}/> Clear history</button>}</div>
+  useEffect(() => {
+    if (setupRequest && ready) document.getElementById('research-connection')?.focus()
+  }, [ready, setupRequest])
+  const { mode, key, hosted } = researchConnection
+  const hostedReady = hosted === true && session?.user?.id === identity?.id && identity?.canUseGroq === true
+  const modeLabel = !online || mode === 'local' ? 'LOCAL RESEARCH' : mode === 'device' && key ? 'GROQ · MY KEY' : mode === 'hosted' && hostedReady ? 'GROQ · WORKSPACE' : 'LOCAL · GROQ SETUP NEEDED'
+  return <div className="module-page"><SectionHeading title="Aura Research" description="Ask, compare and verify. Four specialist agents, grounded in dated evidence." eyebrow="MULTI-AGENT INTELLIGENCE" icon="sparkle"><button type="button" className="button secondary" onClick={() => { setTab('Analyst chat'); setSetupRequest((count) => count + 1) }}>Groq setup</button><span className="ai-badge"><i/> {modeLabel}</span></SectionHeading><div className="page-tabs"><Tabs options={['Analyst chat', 'Event studies']} value={tab} onChange={setTab} label="Research mode"/>{ready && !!messages.length && <button type="button" className="button secondary" onClick={() => setConfirm(true)} disabled={pending}><Trash2 size={14}/> Clear history</button>}</div>
     <motion.div className="module-tab" key={tab} initial={{ opacity: .6, y: 6 }} animate={{ opacity: 1, y: 0 }}>{ready ? <div className="research-layout"><section className="glass chat-panel"><PanelTitle icon="sparkle" color="violet" title={agent === 'auto' ? 'Aura desk' : agents[agent].name} subtitle={agent === 'auto' ? 'Auto-routes questions to the relevant specialist' : agents[agent].description}/><div className="chat-scroll" ref={feed} aria-live="polite" aria-label="Research conversation">
       {!messages.length && !pending && <div className="chat-intro"><GlyphBox name="sparkle" color="violet"/><h2>What are you researching?</h2><p>Start with a question about Kenyan markets, or try one of these queries.</p><div className="research-examples">{researchExamples.map((example) => <button type="button" key={example.agent} onClick={() => { setAgent(example.agent); ask(example.text, example.agent) }}><GlyphBox name={agents[example.agent].icon} color={agents[example.agent].color}/><span>{example.text}</span><ArrowRight size={14}/></button>)}</div></div>}
       {messages.map((item) => <article className="chat-exchange" key={item.id}><div className="user-message">{item.question}</div><Response report={item.answer}/></article>)}{pending && <div className="research-pending"><span/><span/><span/> Reviewing available evidence…</div>}

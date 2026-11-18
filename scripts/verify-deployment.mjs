@@ -7,28 +7,44 @@ const base = new URL(process.argv[2])
 assert.equal(base.protocol, 'https:', 'Pass the deployed HTTPS URL')
 const production = base.hostname === 'auratrade-east-africa.vercel.app'
 const expected = JSON.parse(await readFile(new URL('../public/app/android.json', import.meta.url), 'utf8'))
-async function request(path, options = {}) {
+const revision = process.env.AURA_EXPECTED_REVISION || ''
+if (revision) assert.match(revision, /^[a-f0-9]{40}$/, 'Use a full Git commit SHA to verify a specific deployment')
+async function request(path, { status, ...options } = {}) {
   const response = await fetch(new URL(path, base), { redirect: 'error', signal: AbortSignal.timeout(20_000), ...options })
-  if (!options.status) assert.ok(response.ok, `${path} returned HTTP ${response.status}`)
-  else assert.equal(response.status, options.status, `${path} returned the expected HTTP status`)
+  if (!status) assert.ok(response.ok, `${path} returned HTTP ${response.status}`)
+  else assert.equal(response.status, status, `${path} returned the expected HTTP status`)
   return response
 }
+const revisionOf = (html) => html.match(/<meta name="aura-revision" content="([a-f0-9]{40}|local)"/)?.[1]
+async function htmlAt(path) {
+  const response = await request(path, { cache: 'no-cache' })
+  assert.match(response.headers.get('cache-control') ?? '', /(?:no-cache|no-store)/, `${path} revalidates the HTML shell`)
+  return response.text()
+}
 
-// Automatic checks start at the same time as Vercel's build. Wait for the current
-// repo artifact instead of mistaking the previous production deployment for success.
-let manifest
+// The APK often stays unchanged between web releases. Wait for the actual web
+// revision as well, instead of accepting a previous deployment with the same APK.
+let manifest, settings
 for (let i = 0; i < (production ? 28 : 1); i++) {
-  try { manifest = await request('/app/android.json').then((response) => response.json()) } catch (error) { if (!production) throw error }
-  if (!production || manifest?.sha256 === expected.sha256) break
+  try {
+    const [artifact, html] = await Promise.all([request('/app/android.json').then((response) => response.json()), htmlAt('/settings')])
+    manifest = artifact
+    settings = html
+  } catch (error) { if (!production || i === 27) throw error }
+  if (!production || (manifest?.sha256 === expected.sha256 && (!revision || revisionOf(settings) === revision))) break
   if (i < 27) await setTimeout(4500)
 }
 if (production) assert.equal(manifest?.sha256, expected.sha256, 'Current signed preview is deployed to the production URL')
+const deployed = revisionOf(settings)
+assert.ok(deployed, 'The public Settings shell identifies its web build')
+if (revision) assert.equal(deployed, revision, 'Production serves the expected web release')
 assert.match(manifest?.url, /^\/app\/[a-z0-9-]+\.apk$/)
 assert.match(manifest.sha256, /^[0-9a-f]{64}$/)
 
-const [research, markets, market, pulse, shell, config, apk, nativeResponse] = await Promise.all([
-  request('/research').then((response) => response.text()),
-  request('/markets?symbol=btc-usd').then((response) => response.text()),
+const [home, research, markets, market, pulse, shell, config, apk, nativeResponse] = await Promise.all([
+  htmlAt('/'),
+  htmlAt('/research'),
+  htmlAt('/markets?symbol=btc-usd'),
   request('/api/market').then((response) => response.json()),
   request('/api/pulse').then((response) => response.json()),
   request('/sw.js').then((response) => response.text()),
@@ -36,8 +52,10 @@ const [research, markets, market, pulse, shell, config, apk, nativeResponse] = a
   request(manifest.url),
   request('/api/pulse', production ? { headers: { Origin: 'https://localhost' } } : {}),
 ])
-assert.match(research, /<title>AuraTrade East Africa/)
-assert.match(markets, /<title>AuraTrade East Africa/)
+for (const html of [home, research, markets, settings]) {
+  assert.match(html, /<title>AuraTrade East Africa/)
+  assert.equal(revisionOf(html), deployed, 'Home and all tested deep links serve the same web release')
+}
 assert.ok(market.rows.some((row) => row.id === 'usd-kes' && row.asOf), 'Dated market observations are served')
 assert.match(shell, /aura-shell-/)
 assert.equal(pulse.interval, 15000)
@@ -48,6 +66,7 @@ if (production) {
   assert.equal(nativeResponse.headers.get('access-control-allow-origin'), 'https://localhost')
   assert.equal(config.authConfigured, true)
   await request('/api/workspace', { status: 401 })
+  await request('/api/research', { status: 401, method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"test":true}' })
   const origin = 'https://localhost'
   const cors = await request('/api/research', { method: 'OPTIONS', headers: { Origin: origin, 'Access-Control-Request-Method': 'POST', 'Access-Control-Request-Headers': 'authorization,content-type' }, status: 204 })
   assert.equal(cors.headers.get('access-control-allow-origin'), origin)
@@ -68,4 +87,4 @@ const bytes = Buffer.from(await apk.arrayBuffer())
 assert.equal(bytes.byteLength, manifest.bytes, 'APK size matches the manifest')
 assert.equal(bytes.readUInt32LE(0), 0x04034b50, 'APK is a ZIP archive')
 assert.equal(createHash('sha256').update(bytes).digest('hex'), manifest.sha256, 'APK checksum matches the manifest')
-console.log(`Verified ${base.origin}: deep links, market pulse, research status, offline shell and ${manifest.kind} APK v${manifest.version} (${bytes.byteLength} bytes, SHA-256 ${manifest.sha256}).`)
+console.log(`Verified ${base.origin} web build ${deployed}: deep links, market pulse, research status (hosted Groq configured: ${config.groqConfigured}), offline shell and ${manifest.kind} APK v${manifest.version} (${bytes.byteLength} bytes, SHA-256 ${manifest.sha256}).`)

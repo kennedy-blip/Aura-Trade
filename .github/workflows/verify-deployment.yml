@@ -3,24 +3,34 @@ on:
   push:
     paths:
       - 'public/app/android.json'
+      - 'scripts/verify-deployment.mjs'
+      - 'tests/hosted-browser.mjs'
   workflow_dispatch:
     inputs:
       url:
         description: Public HTTPS deployment URL
         type: string
         default: https://auratrade-east-africa.vercel.app
+      revision:
+        description: Optional Git commit SHA expected on the deployed site
+        type: string
 permissions:
   contents: read
 jobs:
   smoke:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 7
+    env:
+      AURA_DEPLOYMENT_URL: ${{ inputs.url || 'https://auratrade-east-africa.vercel.app' }}
+      AURA_EXPECTED_REVISION: ${{ github.event_name == 'push' && github.sha || inputs.revision }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Verify market pulse, research, native CORS, offline shell, and APK checksum
-        env:
-          AURA_DEPLOYMENT_URL: ${{ inputs.url || 'https://auratrade-east-africa.vercel.app' }}
+          cache: npm
+      - name: Verify web revision, market data, research, native CORS, and APK checksum
         run: node scripts/verify-deployment.mjs "$AURA_DEPLOYMENT_URL"
+      - run: npm ci
+      - name: Verify the deployed Groq setup and Market Pulse in Chromium
+        run: node tests/hosted-browser.mjs "$AURA_DEPLOYMENT_URL"

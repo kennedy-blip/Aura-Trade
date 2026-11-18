@@ -19,8 +19,9 @@ export function useResearchConnection(scope, online) {
   const check = useCallback(async () => {
     try {
       const status = await api('research', { timeout: 5500 })
-      setHosted(status?.groqConfigured === true)
-      return status?.groqConfigured === true
+      const configured = typeof status?.groqConfigured === 'boolean' ? status.groqConfigured : null
+      setHosted(configured)
+      return configured
     } catch { setHosted(null); return null }
   }, [])
   useEffect(() => { if (online) void check() }, [check, online])

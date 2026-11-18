@@ -29,6 +29,7 @@ const links = [
 ]
 const mobileLinks = ['terminal', 'markets', 'research', 'paper', 'settings'].map((id) => { const item = links.find((link) => link.id === id); return { ...item, name: id === 'paper' ? 'Paper Sim' : id === 'markets' ? 'Pulse' : id === 'research' ? 'Research' : item.name } })
 const routePath = (id) => id === 'terminal' ? '/' : `/${id}`
+const revision = document.querySelector('meta[name="aura-revision"]')?.content
 function locationRoute() {
   const id = location.pathname.split('/')[1]
   const market = id === 'markets' && new URLSearchParams(location.search).get('symbol')
@@ -128,7 +129,7 @@ export function App() {
         {route.id === 'settings' && <Settings openApk={openApk}/>}
         </Suspense>
       </motion.div></AnimatePresence>
-      <footer className="workspace-footer"><span><Activity size={14}/> AuraTrade East Africa <i/> Research &amp; simulation only</span><span><Database size={13}/> {online ? 'Offline cache enabled' : 'Using local cache'}</span></footer>
+      <footer className="workspace-footer"><span><Activity size={14}/> AuraTrade East Africa <i/> Research &amp; simulation only</span><span><Database size={13}/> {online ? 'Offline cache enabled' : 'Using local cache'}{revision && <><i/><small title={revision}>{native ? 'App build' : 'Web build'} {revision.slice(0, 8)}</small></>}</span></footer>
     </main></div>
     <nav className="bottom-nav" aria-label="Mobile workspace">{mobileLinks.map((item) => { const Icon = item.icon; return <a key={item.id} href={routePath(item.id)} aria-current={route.id === item.id ? 'page' : undefined} onClick={(e) => { e.preventDefault(); navigate(item.id) }}><Icon size={19}/><span>{item.name}</span></a> })}</nav>
     {dialog === 'search' && <CommandMenu close={close} navigate={navigate} openApk={openApk}/>}

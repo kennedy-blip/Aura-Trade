@@ -11,5 +11,5 @@ import { native } from './lib/client.js'
 
 createRoot(document.getElementById('root')).render(<React.StrictMode><MotionConfig reducedMotion="user" transition={{ type: 'spring', stiffness: 300, damping: 25 }}><DeskProvider><App /></DeskProvider></MotionConfig></React.StrictMode>)
 if (import.meta.env.PROD && 'serviceWorker' in navigator && !native) {
-  window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}))
+  window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' }).catch(() => {}))
 }

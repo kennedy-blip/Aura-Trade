@@ -1,31 +1,13 @@
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
-import { mkdtemp, readFile, rm } from 'node:fs/promises'
-import { dirname, join } from 'node:path'
-import { tmpdir } from 'node:os'
-import { fileURLToPath } from 'node:url'
-import { createReadStream, createWriteStream } from 'node:fs'
-import { createBrotliDecompress } from 'node:zlib'
-import { pipeline } from 'node:stream/promises'
-import { spawnSync } from 'node:child_process'
-import { chromium as playwright } from 'playwright-core'
-import chromium from '@sparticuz/chromium'
+import { readFile } from 'node:fs/promises'
 import { preview } from 'vite'
+import { withChromium } from './chromium.mjs'
 
-const temp = await mkdtemp(join(tmpdir(), 'aura-browser-'))
-const root = dirname(fileURLToPath(import.meta.resolve('@sparticuz/chromium')))
-const tar = join(temp, 'libs.tar')
-if (!process.env.AURA_CHROMIUM) {
-  await pipeline(createReadStream(join(root, '..', 'bin', 'al2023.tar.br')), createBrotliDecompress(), createWriteStream(tar))
-  const extract = spawnSync('tar', ['-xf', tar, '-C', temp])
-  assert.equal(extract.status, 0, 'extract Chromium shared libraries')
-}
 process.env.AURA_FRED_ENABLED = 'false'
 process.env.AURA_COMMUNITY_CRYPTO = 'false'
 const server = await preview({ preview: { host: '127.0.0.1', port: 4179, strictPort: true } })
-let browser
-try {
-  browser = await playwright.launch({ executablePath: process.env.AURA_CHROMIUM || await chromium.executablePath(), headless: true, args: process.env.AURA_CHROMIUM ? ['--no-sandbox'] : ['--no-sandbox','--disable-dev-shm-usage','--disable-gpu'], env: { ...process.env, LD_LIBRARY_PATH: [join(temp, 'lib'), process.env.LD_LIBRARY_PATH].filter(Boolean).join(':') } })
+await withChromium(async (browser) => {
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, acceptDownloads: true })
   const page = await context.newPage()
   page.setDefaultTimeout(10000)
@@ -40,7 +22,8 @@ try {
   const mockKey = 'gsk_' + 'f'.repeat(44)
   const requested = []
   page.on('request', (request) => {
-    if (request.postData()?.includes(mockKey)) requested.push(request.url())
+    const outsideGroq = new URL(request.url()).origin !== 'https://api.groq.com'
+    if (request.postData()?.includes(mockKey) || (outsideGroq && request.headers().authorization?.includes(mockKey))) requested.push(request.url())
   })
   await page.route('**/api/pulse**', async (route) => {
     const query = new URL(route.request().url()).searchParams
@@ -67,6 +50,9 @@ try {
   })
   await page.goto(url)
   await byHeading('Market Terminal').waitFor()
+  const revision = await page.locator('meta[name="aura-revision"]').getAttribute('content')
+  assert.match(revision, /^(?:[a-f0-9]{40}|local)$/)
+  await page.getByText(`Web build ${revision.slice(0, 8)}`, { exact: true }).waitFor()
   await page.evaluate(() => navigator.serviceWorker.ready)
   await page.waitForFunction(() => navigator.serviceWorker.controller !== null)
   const widths = () => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)
@@ -133,8 +119,13 @@ try {
   const researchEvidence = page.getByRole('link', { name: /EPRA Petroleum Price Review/ })
   assert.match(await researchEvidence.getAttribute('href'), /epra\.go\.ke/)
 
-  await page.getByLabel('Answer mode').selectOption('device')
-  await byButton('Set up Groq key').click()
+  await page.getByText('Hosted Groq is not configured on this deployment.', { exact: true }).waitFor()
+  await byButton('Event studies').click()
+  await byButton('Groq setup').click()
+  await page.waitForFunction(() => document.activeElement?.id === 'research-connection')
+  await byButton('Use my Groq key').click()
+  await page.getByText('LOCAL · GROQ SETUP NEEDED', { exact: true }).waitFor()
+  assert.equal(await byButton('Test Groq connection').isEnabled(), false)
   await page.getByLabel('Groq API key').fill(mockKey)
   await page.getByRole('checkbox', { name: 'Remember on this device' }).check()
   await byButton('Save key').click()
@@ -151,7 +142,7 @@ try {
   await byButton('Send').click()
   await byHeading('Real activity and export flows').waitFor()
   await page.getByText(/Groq’s usage limit was reached.*Showing local research instead/).waitFor()
-  assert.deepEqual(requested, [], 'the key does not appear in request payloads')
+  assert.deepEqual(requested, [], 'the key is sent only in the Groq Authorization header')
   await byButton('Manage Groq key').click()
   await byButton('Remove key').click()
   assert.equal(await page.getByLabel('Answer mode').inputValue(), 'local')
@@ -230,8 +221,4 @@ try {
   await byHeading('From fuel caps to margins and FX').waitFor()
   assert.deepEqual(errors, [], 'no unhandled browser errors')
   console.log('Browser smoke passed: dashboard, chart, scope search, sourced history, 15s pulse and price alert, Groq success and fallback, paper fills, STK flow, taxation, roles, themes, APK center, and offline reload.')
-} finally {
-  await browser?.close()
-  await new Promise((resolve) => server.httpServer.close(resolve))
-  await rm(temp, { force: true, recursive: true })
-}
+}).finally(() => new Promise((resolve) => server.httpServer.close(resolve)))

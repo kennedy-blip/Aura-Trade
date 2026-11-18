@@ -65,8 +65,9 @@
 .ai-key-form { margin-block: 10px; }
 .ai-key-form .checkline { display: flex; align-items: start; width: fit-content; }
 .ai-key-form .checkline > input { width: 1px; min-height: 0; }
+.ai-connection { scroll-margin-block: 16px; }
 .ai-connection .actions { flex-wrap: wrap; }
-.ai-connection .ai-test { margin-top: 11px; }
+.ai-connection .ai-test, .ai-connection .ai-setup { margin-top: 11px; }
 .ai-connection .select-wrap, .ai-connection select { width: min(100%, 305px); }
 .ai-mode-label { width: min(100%, 305px); }
 @media(max-width: 1100px) { .pulse-grid { grid-template-columns: minmax(225px, 31%) minmax(0, 1fr); } }
