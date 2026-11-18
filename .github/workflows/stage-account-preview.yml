@@ -1,0 +1,31 @@
+name: Stage the account preview APK
+on:
+  push:
+    paths: ['.github/workflows/stage-account-preview.yml']
+permissions:
+  contents: read
+jobs:
+  transfer:
+    if: github.ref == 'refs/heads/arena/cf1c56fe-aura-trade'
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: read
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: auratrade-android-preview
+          path: package
+          run-id: '44326271938'
+          github-token: ${{ github.token }}
+      - name: Stage the APK from the successful Android packaging job
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          apk=package/artifacts/auratrade-east-africa-preview.apk
+          sha256sum "$apk"
+          cat package/public/app/android.json
+          base64 -w0 "$apk" \
+            | jq -R '{content: ., encoding: "base64"}' \
+            | gh api "repos/$GITHUB_REPOSITORY/git/blobs" --method POST --input - --jq '.sha'
