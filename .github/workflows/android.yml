@@ -1,0 +1,60 @@
+name: Android package
+on:
+  workflow_dispatch:
+    inputs:
+      package_type:
+        description: 'Preview or signed release'
+        type: choice
+        options: [preview, release]
+        default: preview
+permissions:
+  contents: read
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      VITE_API_BASE_URL: ${{ vars.AURA_API_BASE_URL }}
+      VITE_SUPABASE_URL: ${{ vars.AURA_SUPABASE_URL }}
+      VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.AURA_SUPABASE_PUBLISHABLE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+      - name: Install Android SDK components
+        run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+      - run: npm ci
+      - run: npm test
+      - name: Package preview
+        if: inputs.package_type == 'preview'
+        run: npm run android:debug
+      - name: Package signed release
+        if: inputs.package_type == 'release'
+        env:
+          AURA_SIGNING_KEY_B64: ${{ secrets.AURA_SIGNING_KEY_B64 }}
+          AURA_KEYSTORE_PASSWORD: ${{ secrets.AURA_KEYSTORE_PASSWORD }}
+          AURA_KEY_ALIAS: ${{ secrets.AURA_KEY_ALIAS }}
+          AURA_KEY_PASSWORD: ${{ secrets.AURA_KEY_PASSWORD }}
+          VITE_ENABLE_PREVIEW_ROLES: 'false'
+        run: |
+          set -euo pipefail
+          : "${AURA_SIGNING_KEY_B64:?Set the Android release signing secret}"
+          export AURA_KEYSTORE="$RUNNER_TEMP/auratrade-release.jks"
+          trap 'rm -f "$AURA_KEYSTORE"' EXIT
+          umask 077
+          printf '%s' "$AURA_SIGNING_KEY_B64" | base64 --decode > "$AURA_KEYSTORE"
+          npm run android:release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: auratrade-android-${{ inputs.package_type }}
+          path: |
+            artifacts/*.apk
+            public/app/android.json
+          if-no-files-found: error
