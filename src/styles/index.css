@@ -1,6 +1,7 @@
 @import 'tailwindcss';
 @import './modules.css';
 @import './pulse.css';
+@import './auth.css';
 
 @theme {
   --font-sans: 'Inter Variable', system-ui, sans-serif;

@@ -41,10 +41,11 @@ if (revision) assert.equal(deployed, revision, 'Production serves the expected w
 assert.match(manifest?.url, /^\/app\/[a-z0-9-]+\.apk$/)
 assert.match(manifest.sha256, /^[0-9a-f]{64}$/)
 
-const [home, research, markets, market, pulse, shell, config, apk, nativeResponse] = await Promise.all([
+const [home, research, markets, callback, market, pulse, shell, config, apk, nativeResponse] = await Promise.all([
   htmlAt('/'),
   htmlAt('/research'),
   htmlAt('/markets?symbol=btc-usd'),
+  htmlAt('/auth/callback'),
   request('/api/market').then((response) => response.json()),
   request('/api/pulse').then((response) => response.json()),
   request('/sw.js').then((response) => response.text()),
@@ -52,7 +53,7 @@ const [home, research, markets, market, pulse, shell, config, apk, nativeRespons
   request(manifest.url),
   request('/api/pulse', production ? { headers: { Origin: 'https://localhost' } } : {}),
 ])
-for (const html of [home, research, markets, settings]) {
+for (const html of [home, research, markets, settings, callback]) {
   assert.match(html, /<title>AuraTrade East Africa/)
   assert.equal(revisionOf(html), deployed, 'Home and all tested deep links serve the same web release')
 }
@@ -65,6 +66,10 @@ assert.equal(typeof config.groqConfigured, 'boolean')
 if (production) {
   assert.equal(nativeResponse.headers.get('access-control-allow-origin'), 'https://localhost')
   assert.equal(config.authConfigured, true)
+  assert.equal(manifest.packageId, expected.packageId, 'The published APK reports the intended package')
+  const callbackHeaders = (await request('/auth/callback', { method: 'HEAD' })).headers
+  assert.match(callbackHeaders.get('cache-control') || '', /no-store/)
+  assert.equal(callbackHeaders.get('referrer-policy'), 'no-referrer')
   await request('/api/workspace', { status: 401 })
   await request('/api/research', { status: 401, method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"test":true}' })
   const origin = 'https://localhost'

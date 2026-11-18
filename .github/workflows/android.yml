@@ -4,6 +4,9 @@ on:
     paths:
       - '.github/workflows/android.yml'
       - 'android/**'
+      - 'capacitor.config.json'
+      - 'scripts/build-android.mjs'
+      - 'scripts/publish-apk.mjs'
       - 'scripts/verify-android-launch.sh'
   workflow_dispatch:
     inputs:
@@ -33,6 +36,7 @@ jobs:
       VITE_API_BASE_URL: ${{ inputs.api_base_url || vars.AURA_API_BASE_URL || (github.repository == 'kennedy-blip/Aura-Trade' && 'https://auratrade-east-africa.vercel.app') || '' }}
       VITE_SUPABASE_URL: ${{ inputs.supabase_url || vars.AURA_SUPABASE_URL || (github.repository == 'kennedy-blip/Aura-Trade' && 'https://yyihtothexvluuajelmi.supabase.co') || '' }}
       VITE_SUPABASE_PUBLISHABLE_KEY: ${{ inputs.supabase_publishable_key || vars.AURA_SUPABASE_PUBLISHABLE_KEY || (github.repository == 'kennedy-blip/Aura-Trade' && 'sb_publishable_m15KWmpH3SDX9CSLsqCkGw_PTMxwDmR') || '' }}
+      VITE_REQUIRE_ACCOUNT: 'true'
       VITE_ENABLE_PREVIEW_ROLES: 'false'
     steps:
       - uses: actions/checkout@v4

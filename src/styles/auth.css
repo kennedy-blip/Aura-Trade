@@ -1,0 +1,41 @@
+.workspace-entry { max-width: 1320px; margin-inline: auto; padding: 24px clamp(16px, 4vw, 64px) 20px; min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; }
+.workspace-entry-native { padding-top: calc(18px + env(safe-area-inset-top)); padding-bottom: calc(16px + env(safe-area-inset-bottom)); }
+.entry-header, .entry-footer { display: flex; align-items: center; justify-content: space-between; gap: 13px; flex-wrap: wrap; }
+.entry-header .brand { padding: 0; width: auto; border: 0; }
+.entry-secure { display: inline-flex; gap: 6px; align-items: center; color: var(--secondary); font: 600 10px/1.4 var(--font-mono); letter-spacing: .06em; }
+.entry-grid { flex: 1; display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(330px, .85fr); align-items: stretch; gap: 16px; align-content: center; padding-block: clamp(24px, 4vw, 58px); }
+.entry-brief { position: relative; isolation: isolate; overflow: hidden; border-radius: 14px; border: 1px solid #254541; background: #0b171b; padding: clamp(24px, 4vw, 62px); display: flex; flex-direction: column; justify-content: center; color: #f4fcf8; }
+.entry-art { position: absolute; z-index: -1; inset: 0; background: linear-gradient(100deg, #09191a 4%, #09191ad9 45%, #09191a43), linear-gradient(0deg, #0a1b1dea, transparent), url('/art/nairobi-mesh.webp') 60% 50% / cover; }
+.entry-brief .hero-eyebrow { width: fit-content; }
+.entry-brief h1 { max-width: 10ch; font-size: clamp(36px, 5.5vw, 70px); line-height: 1.01; font-weight: 830; letter-spacing: -.059em; margin: 15px 0 11px; }
+.entry-brief p { max-width: 42ch; color: #bbcfc9; font-size: clamp(13px, 1.5vw, 16px); }
+.entry-brief ul { display: grid; gap: 13px; padding: 19px 0 0; margin: 14px 0 0; border-top: 1px solid #ffffff20; list-style: none; }
+.entry-brief li { display: flex; align-items: center; gap: 10px; color: #d4e7df; }
+.entry-brief li svg { color: #71e4b9; }
+.entry-card { min-width: 0; padding: clamp(18px, 3vw, 33px); align-self: center; width: 100%; }
+.entry-card h2 { font-size: clamp(23px, 2.25vw, 31px); }
+.entry-card > .helper-text { margin-top: 6px; }
+.entry-card .form-error { margin-top: 12px; }
+.entry-card .entry-github { margin-top: 18px; width: 100%; min-height: 46px; font-size: 13px; }
+.entry-github svg:last-child { margin-left: auto; color: var(--muted); }
+.entry-divider { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 11px; margin-block: 15px; }
+.entry-divider::before, .entry-divider::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+.entry-tabs { display: grid; grid-template-columns: 1fr 1fr; margin-bottom: 12px; }
+.entry-tabs button { min-height: 35px; }
+.entry-card .stack-form input { min-height: 43px; }
+.entry-card .entry-submit { width: 100%; justify-content: space-between; min-height: 43px; }
+.entry-confirm { display: flex; gap: 11px; padding: 13px; border: 1px solid var(--line); border-radius: 8px; color: var(--mint); background: var(--mint-wash); }
+.entry-confirm p { margin-top: 4px; color: var(--secondary); }
+.entry-confirm button { margin-top: 7px; }
+.entry-footer { border-top: 1px solid var(--line-soft); padding-top: 13px; color: var(--muted); font-size: 11px; }
+.entry-footer .text-link { margin: 0; }
+.account-state { overflow-wrap: anywhere; }
+@media (max-width: 800px) {
+  .entry-grid { grid-template-columns: minmax(0, 1fr); align-content: start; padding-block: 22px; gap: 12px; }
+  .entry-brief { padding: 19px; }
+  .entry-brief h1 { max-width: none; font-size: 36px; margin-block: 9px 6px; }
+  .entry-brief ul { display: none; }
+  .entry-card { padding: 16px; }
+  .entry-card .stack-form input { font-size: 16px; }
+}
+@media (max-width: 420px) { .entry-header .entry-secure { font-size: 8px; } }

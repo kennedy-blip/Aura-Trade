@@ -49,7 +49,8 @@ test('hosted Groq is allowlisted, separately opted in, and spends quota before c
   const upstreams = []
   t.mock.method(globalThis, 'fetch', (url) => {
     upstreams.push(String(url))
-    if (url === 'https://auth.example/auth/v1/user') return Promise.resolve(Response.json({ id: 'member', app_metadata: { aura_ai: authorized }, user_metadata: { aura_role: 'admin', aura_ai: true } }))
+    if (url === 'https://auth.example/auth/v1/user') return Promise.resolve(Response.json({ id: 'member', user_metadata: { aura_role: 'admin', aura_ai: true } }))
+    if (url === 'https://auth.example/rest/v1/rpc/aura_workspace_access') return Promise.resolve(Response.json({ role: 'member', canUseGroq: authorized }))
     if (url === 'https://auth.example/rest/v1/rpc/aura_consume_research_quota') return Promise.resolve(Response.json(underQuota))
     if (url.startsWith('https://api.groq.com/')) return Promise.resolve(reply.clone())
     assert.fail(`Unexpected upstream: ${url}`)

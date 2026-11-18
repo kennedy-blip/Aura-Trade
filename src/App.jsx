@@ -45,9 +45,9 @@ function NavItem({ item, active, navigate }) {
   return <a className={`nav-item ${active ? 'active' : ''}`} href={routePath(item.id)} aria-current={active ? 'page' : undefined} onClick={(e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return; e.preventDefault(); navigate(item.id) }}><Icon size={17} strokeWidth={1.75}/><span>{item.name}</span>{item.id === 'research' && <span className="sidebar-ai" aria-hidden="true">AI</span>}</a>
 }
 function Profile({ navigate }) {
-  const { role, identity, authEnabled } = useDesk()
-  const display = identity?.email?.split('@')[0] || (authEnabled ? 'Guest workspace' : 'Amina Mwangi')
-  const initials = identity?.email ? display.slice(0, 2).toUpperCase() : authEnabled ? 'GU' : 'AM'
+  const { role, identity, session, authEnabled } = useDesk()
+  const display = (identity?.email || session?.user?.email)?.split('@')[0] || (authEnabled ? 'Workspace account' : 'Amina Mwangi')
+  const initials = display.slice(0, 2).toUpperCase()
   return <button className="profile" type="button" onClick={() => navigate('settings')} aria-label="Workspace settings"><span className="avatar">{initials}</span><span className="profile-meta"><strong>{display}</strong><small>{role === 'admin' ? 'Lead Quant Analyst' : 'Research Member'}</small></span><ChevronsUpDown size={14} className="profile-chevron"/></button>
 }
 function Sidebar({ page, navigate, openApk }) {

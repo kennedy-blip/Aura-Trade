@@ -17,3 +17,5 @@ jobs:
       - run: npm test
       - run: npm run build
       - run: npm run test:browser
+      - name: Verify account entry and hosted permissions with browser fixtures
+        run: node tests/account-browser.mjs

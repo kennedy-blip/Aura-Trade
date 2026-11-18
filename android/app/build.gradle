@@ -7,8 +7,9 @@ android {
         applicationId "africa.auratrade.terminal"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 2
-        versionName "1.1.0"
+        manifestPlaceholders = [appLabel: '@string/app_name']
+        versionCode 3
+        versionName "1.2.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -28,7 +29,7 @@ android {
     }
     buildTypes {
         debug {
-            applicationIdSuffix '.preview'
+            applicationIdSuffix '.debug'
             versionNameSuffix '-preview'
         }
         release {
@@ -38,7 +39,10 @@ android {
         }
         preview {
             initWith release
-            applicationIdSuffix '.preview'
+            // Isolated from the 1.1 preview, whose original signing key is needed for an in-place upgrade.
+            applicationIdSuffix '.accountpreview'
+            resValue 'string', 'preview_app_name', 'AuraTrade Account Preview'
+            manifestPlaceholders = [appLabel: '@string/preview_app_name']
             versionNameSuffix '-preview'
             signingConfig signingConfigs.debug
             matchingFallbacks = ['release']

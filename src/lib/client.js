@@ -5,8 +5,14 @@ const env = import.meta.env
 export const native = Capacitor.isNativePlatform()
 const endpoint = (env.VITE_API_BASE_URL || '').trim().replace(/\/$/, '')
 export const hasHostedApi = !native || endpoint.startsWith('https://')
-export const supabase = env.VITE_SUPABASE_URL && env.VITE_SUPABASE_PUBLISHABLE_KEY ? createClient(env.VITE_SUPABASE_URL, env.VITE_SUPABASE_PUBLISHABLE_KEY, { auth: { detectSessionInUrl: !native } }) : null
-export const previewRoles = !supabase && env.VITE_ENABLE_PREVIEW_ROLES !== 'false'
+function httpsOrigin(value) {
+  try { const url = new URL(value); return url.protocol === 'https:' && !url.username && !url.password ? url.origin : '' } catch { return '' }
+}
+export const publicAuthUrl = httpsOrigin(env.VITE_AUTH_SITE_URL)
+export const supabaseUrl = env.VITE_SUPABASE_URL
+export const supabase = supabaseUrl && env.VITE_SUPABASE_PUBLISHABLE_KEY ? createClient(supabaseUrl, env.VITE_SUPABASE_PUBLISHABLE_KEY, { auth: { flowType: 'pkce', detectSessionInUrl: false } }) : null
+export const requiresAccount = Boolean(supabase) || native || env.VITE_REQUIRE_ACCOUNT === 'true'
+export const previewRoles = !requiresAccount && env.VITE_ENABLE_PREVIEW_ROLES !== 'false'
 export const apkUrl = (env.VITE_ANDROID_APK_URL || '').startsWith('https://') ? env.VITE_ANDROID_APK_URL : null
 export async function api(path, { method = 'GET', token, body, timeout = 8500 } = {}) {
   if (!hasHostedApi || !navigator.onLine) throw new Error('The hosted service is unavailable offline.')
