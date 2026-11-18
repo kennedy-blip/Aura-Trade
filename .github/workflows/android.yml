@@ -1,5 +1,9 @@
 name: Android package
 on:
+  push:
+    paths:
+      - '.github/workflows/android.yml'
+      - 'android/**'
   workflow_dispatch:
     inputs:
       package_type:
@@ -22,10 +26,12 @@ jobs:
   apk:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # The checked-in public preview uses publishable connection values only.
+    # Repo variables or manual inputs take precedence for other deployments.
     env:
-      VITE_API_BASE_URL: ${{ inputs.api_base_url || vars.AURA_API_BASE_URL }}
-      VITE_SUPABASE_URL: ${{ inputs.supabase_url || vars.AURA_SUPABASE_URL }}
-      VITE_SUPABASE_PUBLISHABLE_KEY: ${{ inputs.supabase_publishable_key || vars.AURA_SUPABASE_PUBLISHABLE_KEY }}
+      VITE_API_BASE_URL: ${{ inputs.api_base_url || vars.AURA_API_BASE_URL || (github.repository == 'kennedy-blip/Aura-Trade' && 'https://auratrade-east-africa.vercel.app') || '' }}
+      VITE_SUPABASE_URL: ${{ inputs.supabase_url || vars.AURA_SUPABASE_URL || (github.repository == 'kennedy-blip/Aura-Trade' && 'https://yyihtothexvluuajelmi.supabase.co') || '' }}
+      VITE_SUPABASE_PUBLISHABLE_KEY: ${{ inputs.supabase_publishable_key || vars.AURA_SUPABASE_PUBLISHABLE_KEY || (github.repository == 'kennedy-blip/Aura-Trade' && 'sb_publishable_m15KWmpH3SDX9CSLsqCkGw_PTMxwDmR') || '' }}
       VITE_ENABLE_PREVIEW_ROLES: 'false'
     steps:
       - uses: actions/checkout@v4
@@ -43,7 +49,7 @@ jobs:
       - run: npm ci
       - run: npm test
       - name: Package preview
-        if: inputs.package_type == 'preview'
+        if: inputs.package_type != 'release'
         run: npm run android:preview
       - name: Package signed release
         if: inputs.package_type == 'release'
@@ -63,8 +69,40 @@ jobs:
           npm run android:release
       - uses: actions/upload-artifact@v4
         with:
-          name: auratrade-android-${{ inputs.package_type }}
+          name: auratrade-android-${{ inputs.package_type || 'preview' }}
           path: |
             artifacts/*.apk
             public/app/android.json
           if-no-files-found: error
+  android-launch:
+    if: inputs.package_type != 'release'
+    needs: apk
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: auratrade-android-preview
+          path: package
+      - name: Enable hardware acceleration
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Install and launch the preview in Android
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: true
+          script: |
+            adb install package/artifacts/auratrade-east-africa-preview.apk
+            adb shell am start -W -n africa.auratrade.terminal.preview/africa.auratrade.terminal.MainActivity
+            for attempt in {1..12}; do
+              if adb shell uiautomator dump /sdcard/aura-ui.xml && adb shell cat /sdcard/aura-ui.xml | grep -q 'Market Terminal'; then exit 0; fi
+              sleep 2
+            done
+            adb logcat -d -s AndroidRuntime Capacitor chromium
+            exit 1
