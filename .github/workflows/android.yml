@@ -4,6 +4,9 @@ on:
     paths:
       - '.github/workflows/android.yml'
       - 'android/**'
+      - 'capacitor.config.json'
+      - 'scripts/build-android.mjs'
+      - 'scripts/publish-apk.mjs'
       - 'scripts/verify-android-launch.sh'
   workflow_dispatch:
     inputs:
@@ -33,6 +36,7 @@ jobs:
       VITE_API_BASE_URL: ${{ inputs.api_base_url || vars.AURA_API_BASE_URL || (github.repository == 'kennedy-blip/Aura-Trade' && 'https://auratrade-east-africa.vercel.app') || '' }}
       VITE_SUPABASE_URL: ${{ inputs.supabase_url || vars.AURA_SUPABASE_URL || (github.repository == 'kennedy-blip/Aura-Trade' && 'https://yyihtothexvluuajelmi.supabase.co') || '' }}
       VITE_SUPABASE_PUBLISHABLE_KEY: ${{ inputs.supabase_publishable_key || vars.AURA_SUPABASE_PUBLISHABLE_KEY || (github.repository == 'kennedy-blip/Aura-Trade' && 'sb_publishable_m15KWmpH3SDX9CSLsqCkGw_PTMxwDmR') || '' }}
+      VITE_REQUIRE_ACCOUNT: 'true'
       VITE_ENABLE_PREVIEW_ROLES: 'false'
     steps:
       - uses: actions/checkout@v4
@@ -107,3 +111,23 @@ jobs:
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
           script: bash scripts/verify-android-launch.sh package/artifacts/auratrade-east-africa-preview.apk
+  transfer-account-preview:
+    # One-time handoff for the release branch (Actions artifact downloads use a blocked storage host).
+    if: github.event_name == 'push' && github.ref == 'refs/heads/arena/cf1c56fe-aura-trade'
+    needs: android-launch
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: auratrade-android-preview
+          path: package
+      - name: Stage the verified public APK as a Git blob
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          base64 -w0 package/artifacts/auratrade-east-africa-preview.apk \
+            | jq -R '{content: ., encoding: "base64"}' \
+            | gh api "repos/$GITHUB_REPOSITORY/git/blobs" --method POST --input - --jq '.sha'

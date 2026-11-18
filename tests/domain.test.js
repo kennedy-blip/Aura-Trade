@@ -2,6 +2,7 @@ import 'fake-indexeddb/auto'
 import { beforeEach, after, test } from 'node:test'
 import assert from 'node:assert/strict'
 import { db, readyDB, cacheFeeds, executeTrade, settlePush, startPush, advanceReplay, resetWallet } from '../src/db/index.js'
+import { hasGuestWorkspace, restoreGuestWorkspace } from '../src/db/guestWorkspace.js'
 import { baseline, shockImpact, simpleBenchmark, compoundedBenchmark, taxEstimate, validateSettings } from '../src/lib/models.js'
 import { analyzeResearch, pickAgent, scoreSentiment, statistics } from '../src/lib/research.js'
 import { fillQuote, replayBook, testPhone, START_CENTS, walletValue } from '../src/lib/ledger.js'
@@ -41,6 +42,19 @@ test('paper wallet does not borrow cash, short, or mix workspace scopes', async 
   await resetWallet('alpha', 'admin')
   assert.equal(await db.trades.count(), 0)
   assert.equal(walletValue(await db.wallets.get('alpha')), START_CENTS)
+})
+test('earlier guest activity restores once without overwriting an account or leaving this device', async () => {
+  await executeTrade('local', { symbol: 'SCOM', side: 'buy', quantity: 5 })
+  await db.messages.add({ id: 'earlier-message', scope: 'local', question: 'Earlier research' })
+  await executeTrade('user:busy', { symbol: 'KCB', side: 'buy', quantity: 1 })
+  await assert.rejects(restoreGuestWorkspace('user:busy'), /already has activity/)
+  assert.equal(await hasGuestWorkspace(), true)
+  await restoreGuestWorkspace('user:new')
+  assert.equal((await db.wallets.get('user:new')).positions.SCOM.quantity, 5)
+  assert.equal(await db.trades.where('scope').equals('local').count(), 1)
+  assert.equal((await db.messages.where('scope').equals('user:new').first()).question, 'Earlier research')
+  await assert.rejects(restoreGuestWorkspace('user:other'), /no unclaimed guest workspace/)
+  assert.equal(await hasGuestWorkspace(), false)
 })
 test('concurrent fills cannot spend the same opening cash twice', async () => {
   const results = await Promise.allSettled([executeTrade('alpha', { symbol: 'BAT', side: 'buy', quantity: 222 }), executeTrade('alpha', { symbol: 'BAT', side: 'buy', quantity: 222 })])
@@ -93,16 +107,34 @@ test('market normalizer allows only known series, values and publisher URLs', ()
   assert.equal(isDate('2026-02-31'), false)
   assert.equal(csv([['=1+1','comma,thing',2]]), '"\'=1+1","comma,thing","2"')
 })
-test('hosted admin validation ignores user-controlled metadata', async () => {
+test('hosted access uses verified identity and current database grants, not profile fields', async () => {
   const realFetch = globalThis.fetch
   const saved = [process.env.SUPABASE_URL, process.env.SUPABASE_PUBLISHABLE_KEY]
   process.env.SUPABASE_URL = 'https://auth.test'
   process.env.SUPABASE_PUBLISHABLE_KEY = 'unit-test'
-  globalThis.fetch = async () => Response.json({ id: 'user-id', user_metadata: { aura_role: 'admin' }, app_metadata: {} })
+  const req = { headers: { authorization: 'Bearer test.jwt' } }
+  let anonymous = false
+  let access = { role: 'member', canUseGroq: false }
+  globalThis.fetch = async (url, options) => {
+    assert.equal(options.headers.Authorization, 'Bearer test.jwt')
+    if (url.endsWith('/auth/v1/user')) return Response.json({ id: 'user-id', is_anonymous: anonymous, user_metadata: { aura_role: 'admin', aura_ai: true } })
+    assert.equal(url, 'https://auth.test/rest/v1/rpc/aura_workspace_access')
+    assert.equal(options.method, 'POST')
+    return Response.json(access)
+  }
   try {
     await assert.rejects(identity({ headers: {} }), { status: 401 })
-    await assert.rejects(identity({ headers: { authorization: 'Bearer test.jwt' } }, { admin: true }), { status: 403 })
-    assert.equal((await identity({ headers: { authorization: 'Bearer test.jwt' } })).role, 'member')
+    await assert.rejects(identity(req, { admin: true }), { status: 403 })
+    assert.equal((await identity(req)).canUseGroq, false)
+    access = { role: 'member', canUseGroq: true }
+    assert.equal((await identity(req)).canUseGroq, true)
+    await assert.rejects(identity(req, { admin: true }), { status: 403 })
+    access = { role: 'admin', canUseGroq: true }
+    assert.equal((await identity(req, { admin: true })).role, 'admin')
+    access = null
+    await assert.rejects(identity(req), { status: 403 })
+    anonymous = true
+    await assert.rejects(identity(req), { status: 401 })
   } finally {
     globalThis.fetch = realFetch
     if (saved[0] === undefined) delete process.env.SUPABASE_URL; else process.env.SUPABASE_URL = saved[0]

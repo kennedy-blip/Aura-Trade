@@ -14,12 +14,13 @@ const themes = ['obsidian','savannah','amber']
 const get = (key, fallback) => { try { return localStorage.getItem(key) || fallback } catch { return fallback } }
 const set = (key, value) => { try { localStorage.setItem(key, value) } catch { /* storage may be disabled */ } }
 
-export default function DeskProvider({ children }) {
+export default function DeskProvider({ children, session }) {
   const [theme, setTheme] = useState(() => themes.includes(get('aura-theme', 'obsidian')) ? get('aura-theme', 'obsidian') : 'obsidian')
   const [requested, setRequested] = useState(() => !supabase && get('aura-role', 'member') === 'admin' ? 'admin' : 'member')
   const [online, setOnline] = useState(navigator.onLine)
   const [identity, setIdentity] = useState(null)
-  const [session, setSession] = useState(null)
+  const [accessError, setAccessError] = useState(false)
+  const [accessCheck, setAccessCheck] = useState(0)
   const [storageError, setStorageError] = useState(false)
   const [notice, setNotice] = useState(null)
   const [refreshing, setRefreshing] = useState(false)
@@ -59,21 +60,14 @@ export default function DeskProvider({ children }) {
     set('aura-theme', theme)
   }, [theme])
   useEffect(() => {
-    if (!supabase) return
-    const sub = supabase.auth.onAuthStateChange((event, fresh) => {
-      setSession(fresh)
-      if (event === 'SIGNED_OUT') { setIdentity(null); setHostedSettings(null); setRequested('member') }
-    }).data.subscription
-    return () => sub.unsubscribe()
-  }, [])
-  useEffect(() => {
     if (!session?.access_token || !online) return
     let current = true
+    setAccessError(false)
     api('workspace?settings=1', { token: session.access_token }).then((value) => {
       if (current) { setIdentity(value); setHostedSettings(value.settings) }
-    }).catch(() => { if (current) { setIdentity(null); setHostedSettings(null) } })
+    }).catch(() => { if (current) { setIdentity(null); setHostedSettings(null); setAccessError(true) } })
     return () => { current = false }
-  }, [session?.access_token, online])
+  }, [session?.access_token, online, accessCheck])
 
   const refresh = useCallback(async (manual = false) => {
     if (busy.current) return
@@ -110,5 +104,5 @@ export default function DeskProvider({ children }) {
       setHostedSettings(result.settings)
     }
   }
-  return <DeskContext.Provider value={{ theme, setTheme, online, role, switchRole, scope, session, identity, canSwitchAdmin: previewRoles || (online && identity?.role === 'admin'), previewRoles, authEnabled: !!supabase, settings, saveDesk, rows, events, sentiment, feedMeta, pulse, researchConnection, refresh, refreshing, toast, notice, setNotice, storageError }}>{children}</DeskContext.Provider>
+  return <DeskContext.Provider value={{ theme, setTheme, online, role, switchRole, scope, session, identity, accessError, checkAccess: () => setAccessCheck((value) => value + 1), canSwitchAdmin: previewRoles || (online && identity?.role === 'admin'), previewRoles, authEnabled: !!supabase, settings, saveDesk, rows, events, sentiment, feedMeta, pulse, researchConnection, refresh, refreshing, toast, notice, setNotice, storageError }}>{children}</DeskContext.Provider>
 }

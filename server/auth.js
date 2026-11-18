@@ -10,10 +10,12 @@ export async function identity(req, { admin = false } = {}) {
   const upstream = await fetch(`${url}/auth/v1/user`, { headers, redirect: 'error', signal: AbortSignal.timeout(5000) })
   if (!upstream.ok) throw new HttpError(upstream.status >= 500 ? 503 : 401, upstream.status >= 500 ? 'Authentication is temporarily unavailable.' : 'Your session is no longer valid.')
   const user = await upstream.json()
-  if (!user.id) throw new HttpError(401, 'Your session is no longer valid.')
-  const role = user.app_metadata?.aura_role === 'admin' ? 'admin' : 'member'
-  if (admin && role !== 'admin') throw new HttpError(403, 'Lead Quantitative Analyst privileges are required.')
-  return { url, headers, user, role, canUseGroq: role === 'admin' || user.app_metadata?.aura_ai === true }
+  if (!user.id || user.is_anonymous === true) throw new HttpError(401, 'Sign in with a workspace account to continue.')
+  const auth = { url, headers, user }
+  const access = await deskRequest(auth, 'rpc/aura_workspace_access', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }).then((response) => response.json())
+  if (!access || !['admin', 'member'].includes(access.role) || typeof access.canUseGroq !== 'boolean') throw new HttpError(403, 'Workspace access could not be verified.')
+  if (admin && access.role !== 'admin') throw new HttpError(403, 'Lead Quantitative Analyst privileges are required.')
+  return { ...auth, role: access.role, canUseGroq: access.canUseGroq }
 }
 export async function deskRequest(auth, path, options = {}) {
   const upstream = await fetch(`${auth.url}/rest/v1/${path}`, { ...options, headers: { ...auth.headers, ...options.headers }, redirect: 'error', signal: AbortSignal.timeout(6000) })

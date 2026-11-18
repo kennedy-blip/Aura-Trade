@@ -11,7 +11,7 @@ export default function ResearchConnection({ compact = false, openSettings }) {
   return <ConnectionPanel key={scope} compact={compact} openSettings={openSettings}/>
 }
 function ConnectionPanel({ compact, openSettings }) {
-  const { researchConnection: connection, session, identity, online, toast } = useDesk()
+  const { researchConnection: connection, session, identity, online, accessError, toast } = useDesk()
   const [show, setShow] = useState(!compact)
   const [value, setValue] = useState('')
   const [remember, setRemember] = useState(connection.remembered)
@@ -22,7 +22,7 @@ function ConnectionPanel({ compact, openSettings }) {
   const allowed = identity?.id === session?.user?.id && identity?.canUseGroq === true
   const enabled = connection.mode === 'device' ? !!connection.key : hosted && allowed && connection.hosted === true
   const resetStatus = () => { setTestState(''); setError('') }
-  const hostedStatus = connection.hosted === false ? 'This deployment has no hosted Groq key configured.' : !session ? 'Sign in with an authorized workspace account.' : !identity ? 'Waiting for account verification.' : !allowed ? 'Ask your AuraTrade administrator to enable hosted AI for this account.' : connection.hosted === null ? 'Could not check hosted configuration.' : 'Ready to test the Vercel connection.'
+  const hostedStatus = connection.hosted === false ? 'This deployment has no hosted Groq key configured.' : !online ? 'Go online to use workspace Groq.' : !session ? 'Sign in with an authorized workspace account.' : accessError ? 'Could not verify your account. Check workspace access in Settings.' : !identity ? 'Waiting for account verification.' : !allowed ? 'This account does not have access to the shared key. Use your own Groq key or local research.' : connection.hosted === null ? 'Could not check hosted configuration.' : 'Ready to test the Vercel connection.'
   async function test() {
     setBusy(true); resetStatus()
     try {
@@ -43,7 +43,7 @@ function ConnectionPanel({ compact, openSettings }) {
   return <section className="glass module-card ai-connection" id="research-connection" aria-label="Groq connection" tabIndex={-1}><PanelTitle icon="sparkle" color="violet" title="Groq connection" subtitle="Use your own key or a configured workspace key."/><label className="ai-mode-label">Answer mode<Select label="Answer mode" options={options} value={connection.mode} onChange={chooseMode}/></label>
     {connection.mode === 'local' ? <>
       <p className="helper-text">Local answers are active. Groq isn’t used in this mode.</p>
-      <button type="button" className="button secondary ai-setup" onClick={() => chooseMode('device')}><KeyRound size={15}/> Use my Groq key</button>
+      <div className="actions"><button type="button" className="button secondary ai-setup" onClick={() => chooseMode('device')}><KeyRound size={15}/> Use my Groq key</button>{allowed && connection.hosted === true && <button type="button" className="button primary ai-setup" onClick={() => chooseMode('hosted')}><PlugZap size={15}/> Use workspace Groq</button>}</div>
       {connection.hosted === false && <p className="helper-text">Hosted Groq is not configured on this deployment.</p>}
     </> : <>
       {hosted ? <><p className="helper-text">{hostedStatus} A workspace key is stored on Vercel, never in the app. Questions go to AuraTrade’s API and Groq.</p>{openSettings && !session && <button type="button" className="text-link" onClick={openSettings}>Open account settings <ArrowUpRight size={13}/></button>}</> : <>
