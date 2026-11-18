@@ -57,6 +57,7 @@ await withChromium(async (browser) => {
     assert.equal(request.searchParams.get('redirect_to'), `${base}/auth/callback`)
     assert.equal(request.searchParams.get('code_challenge_method'), 's256')
     assert.equal(provider.origin + provider.pathname, 'https://github.com/login/oauth/authorize')
+    assert.equal(provider.searchParams.get('redirect_to'), `${base}/auth/callback`)
     assert.equal(new URL(provider.searchParams.get('redirect_uri')).origin, request.origin)
     console.log('Live GitHub OAuth handoff verified; no GitHub account was signed in.')
   }
