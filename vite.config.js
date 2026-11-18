@@ -7,9 +7,10 @@ import market from './api/market.js'
 import workspace from './api/workspace.js'
 import research from './api/research.js'
 import audit from './api/audit.js'
+import pulse from './api/pulse.js'
 
 function localApi() {
-  const routes = { '/api/market': market, '/api/workspace': workspace, '/api/research': research, '/api/audit': audit }
+  const routes = { '/api/market': market, '/api/workspace': workspace, '/api/research': research, '/api/audit': audit, '/api/pulse': pulse }
   const attach = (server) => { server.middlewares.use((req, res, next) => {
     const route = routes[req.url?.split('?')[0]]
     if (route) return void route(req, res)
@@ -36,7 +37,7 @@ self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
   if (event.request.method !== 'GET' || url.origin !== self.location.origin || url.pathname.startsWith('/api/') || url.pathname.startsWith('/app/')) return;
   if (event.request.mode === 'navigate') {
-    event.respondWith(caches.open(CACHE).then(cache => cache.match('/index.html')).then(response => response || fetch(event.request)));
+    event.respondWith(fetch(event.request).catch(() => caches.open(CACHE).then(cache => cache.match('/index.html'))));
   } else if (FILES.includes(url.pathname)) {
     event.respondWith(caches.open(CACHE).then(cache => cache.match(url.pathname)).then(response => response || fetch(event.request)));
   }

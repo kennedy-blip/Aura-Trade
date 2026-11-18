@@ -9,7 +9,7 @@ export default route(['GET','PUT'], async (req) => {
       ? (await (await deskRequest(auth, `aura_desk_settings?select=config&owner=eq.${encodeURIComponent(user.id)}`)).json())[0]?.config || null : null
     let settings = null
     try { if (stored) settings = validateSettings(stored) } catch { settings = null }
-    return { id: user.id, email: user.email, role, settings }
+    return { id: user.id, email: user.email, role, canUseGroq: auth.canUseGroq, settings }
   }
   const body = await readJson(req)
   let settings

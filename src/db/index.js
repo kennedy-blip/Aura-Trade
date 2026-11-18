@@ -11,6 +11,10 @@ db.version(1).stores({
 })
 
 db.version(2).stores({ events: 'id, date, source', sentiment: 'id, date, channel' })
+db.version(3).stores({
+  pulseQuotes: 'id', pulseTicks: '[id+minute], id, minute', pulseHistory: 'key',
+  marketRules: '[scope+id], scope', marketAlerts: '[scope+id], scope',
+})
 export async function readyDB() {
   await db.transaction('rw', db.market, db.studies, db.events, db.sentiment, async () => {
     const stored = await db.market.bulkGet(snapshot.map(({ id }) => id))
@@ -88,8 +92,9 @@ export async function resetWallet(scope, capability) {
   })
 }
 export async function clearLocalWorkspace(scope) {
-  await db.transaction('rw', db.wallets, db.trades, db.deposits, db.messages, db.compliance, async () => {
+  await db.transaction('rw', db.wallets, db.trades, db.deposits, db.messages, db.compliance, db.preferences, db.marketRules, db.marketAlerts, async () => {
     await db.wallets.delete(scope)
-    await Promise.all([db.trades, db.deposits, db.messages, db.compliance].map((table) => table.where('scope').equals(scope).delete()))
+    await db.preferences.delete(`watch:${scope}`)
+    await Promise.all([db.trades, db.deposits, db.messages, db.compliance, db.marketRules, db.marketAlerts].map((table) => table.where('scope').equals(scope).delete()))
   })
 }

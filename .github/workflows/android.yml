@@ -7,6 +7,15 @@ on:
         type: choice
         options: [preview, release]
         default: preview
+      api_base_url:
+        description: Hosted HTTPS API origin (public; falls back to AURA_API_BASE_URL)
+        type: string
+      supabase_url:
+        description: Supabase project URL (public; falls back to AURA_SUPABASE_URL)
+        type: string
+      supabase_publishable_key:
+        description: Only the Supabase publishable key, never a secret
+        type: string
 permissions:
   contents: read
 jobs:
@@ -14,9 +23,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      VITE_API_BASE_URL: ${{ vars.AURA_API_BASE_URL }}
-      VITE_SUPABASE_URL: ${{ vars.AURA_SUPABASE_URL }}
-      VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.AURA_SUPABASE_PUBLISHABLE_KEY }}
+      VITE_API_BASE_URL: ${{ inputs.api_base_url || vars.AURA_API_BASE_URL }}
+      VITE_SUPABASE_URL: ${{ inputs.supabase_url || vars.AURA_SUPABASE_URL }}
+      VITE_SUPABASE_PUBLISHABLE_KEY: ${{ inputs.supabase_publishable_key || vars.AURA_SUPABASE_PUBLISHABLE_KEY }}
+      VITE_ENABLE_PREVIEW_ROLES: 'false'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -34,7 +44,7 @@ jobs:
       - run: npm test
       - name: Package preview
         if: inputs.package_type == 'preview'
-        run: npm run android:debug
+        run: npm run android:preview
       - name: Package signed release
         if: inputs.package_type == 'release'
         env:

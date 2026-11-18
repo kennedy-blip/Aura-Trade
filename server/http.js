@@ -20,6 +20,7 @@ export function route(methods, action, { publicCache = false } = {}) {
     if (origin && allowed.includes(origin)) {
       res.setHeader('Access-Control-Allow-Origin', origin)
       res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type')
+      res.setHeader('Access-Control-Max-Age', '600')
       res.setHeader('Access-Control-Allow-Methods', [...methods, 'OPTIONS'].join(', '))
     }
     res.setHeader('Vary', 'Origin')
@@ -33,7 +34,7 @@ export function route(methods, action, { publicCache = false } = {}) {
         throw new HttpError(405, 'Method not allowed.')
       }
       const result = await action(req)
-      if (publicCache) res.setHeader('Cache-Control', 'public, max-age=60, s-maxage=900, stale-while-revalidate=120')
+      if (publicCache) res.setHeader('Cache-Control', typeof publicCache === 'string' ? publicCache : 'public, max-age=60, s-maxage=900, stale-while-revalidate=120')
       res.end(JSON.stringify(result))
     } catch (err) {
       res.statusCode = err instanceof HttpError ? err.status : 500
@@ -41,8 +42,8 @@ export function route(methods, action, { publicCache = false } = {}) {
     }
   }
 }
-export async function providerText(url, timeout = 5500, max = 750_000) {
-  const res = await fetch(url, { signal: AbortSignal.timeout(timeout), redirect: 'error', headers: { Accept: 'application/json, text/csv, text/html;q=0.7, */*;q=0.2' } })
+export async function providerText(url, timeout = 5500, max = 750_000, headers = {}) {
+  const res = await fetch(url, { signal: AbortSignal.timeout(timeout), redirect: 'error', headers: { Accept: 'application/json, text/csv, text/html;q=0.7, */*;q=0.2', ...headers } })
   if (!res.ok || !res.body || Number(res.headers.get('content-length')) > max) throw new Error('Feed unavailable.')
   const parts = []
   let length = 0

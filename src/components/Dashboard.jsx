@@ -13,7 +13,7 @@ const metricStyles = [
   { id: 'cpi', label: 'Kenya Inflation', color: 'amber', icon: Radio, values: cpiSeries, detail: 'Headline CPI · year on year' },
 ]
 function Hero({ navigate }) {
-  return <section className="hero"><div className="hero-art"/><div className="hero-grid"/><div className="hero-content"><div className="hero-eyebrow"><span className="signal-dot"/> EAST AFRICA INTELLIGENCE DESK</div><h1>Market Terminal</h1><p>Global signals. Kenyan context. One research terminal.</p><div className="hero-actions"><button type="button" className="button primary" onClick={() => navigate('macro')}>Explore Macro Engine <ArrowUpRight size={15}/></button><button type="button" className="button hero-secondary" onClick={() => navigate('research')}><Sparkles size={15}/> Ask Aura AI</button></div></div><div className="hero-location"><MapPin size={12}/><span>NAIROBI, KENYA</span></div></section>
+  return <section className="hero"><div className="hero-art"/><div className="hero-grid"/><div className="hero-content"><div className="hero-eyebrow"><span className="signal-dot"/> EAST AFRICA INTELLIGENCE DESK</div><h1>Market Terminal</h1><p>Global signals. Kenyan context. One research terminal.</p><div className="hero-actions"><button type="button" className="button primary" onClick={() => navigate('markets')}>Open Market Pulse <ArrowUpRight size={15}/></button><button type="button" className="button hero-secondary" onClick={() => navigate('research')}><Sparkles size={15}/> Ask Aura AI</button></div></div><div className="hero-location"><MapPin size={12}/><span>NAIROBI, KENYA</span></div></section>
 }
 function Metrics({ navigate }) {
   const { rows } = useDesk()
@@ -36,6 +36,12 @@ function Benchmarks({ navigate }) {
   const tbill = rows.find((row) => row.id === 'tbill')
   return <section className="glass benchmark-card"><PanelTitle title="Local Benchmarks" subtitle="Annualized comparison" icon="bank" color="mint"/><div className="benchmark-row"><span>91-day Treasury bill<small>{dateLabel(tbill.asOf)}</small></span><strong>{displayValue(tbill)}</strong></div><div className="benchmark-row"><span>MMF scenario<small>Illustrative · not a quote</small></span><strong>10.40%</strong></div><button type="button" className="text-link" onClick={() => navigate('paper')}>Open paper simulator <ArrowRight size={14}/></button></section>
 }
+function PulseShortcut({ navigate }) {
+  const { pulse } = useDesk()
+  const alert = pulse.alerts.find((row) => !row.read)
+  const any = pulse.quotes.some((row) => ['Live', 'Indicative'].includes(pulse.stateOf(row)))
+  return <button type="button" className="glass pulse-shortcut" onClick={() => navigate('markets', alert ? { market: alert.instrument } : null)}><GlyphBox name="activity" color="mint"/><span><strong>{alert?.title || 'Market Pulse'}</strong><small>{alert ? 'New market alert · view observation and source' : any ? 'Fresh reference data · trends, watchlist and price alerts' : '15-second checks · sourced history and price alerts'}</small></span><ArrowRight size={17}/></button>
+}
 export default function Dashboard({ navigate, focus }) {
-  return <div className="dashboard"><Hero navigate={navigate}/><Metrics navigate={navigate}/><div className="dashboard-grid"><div className="dashboard-column"><MarketChart focus={focus}/><Briefing navigate={navigate}/></div><div className="dashboard-column"><ResearchDesk navigate={navigate}/><Benchmarks navigate={navigate}/></div></div><div className="dash-source"><span><Clock3 size={13}/> Observations are dated, not a real-time price feed.</span><SourceLink id="cbk" label="CBK source archive"/><button type="button" className="text-link" onClick={() => navigate('macro')}><Globe2 size={13}/> Explore data sources <CornerDownLeft size={12}/></button></div></div>
+  return <div className="dashboard"><Hero navigate={navigate}/><Metrics navigate={navigate}/><PulseShortcut navigate={navigate}/><div className="dashboard-grid"><div className="dashboard-column"><MarketChart focus={focus}/><Briefing navigate={navigate}/></div><div className="dashboard-column"><ResearchDesk navigate={navigate}/><Benchmarks navigate={navigate}/></div></div><div className="dash-source"><span><Clock3 size={13}/> Observations are dated, not a real-time price feed.</span><SourceLink id="cbk" label="CBK source archive"/><button type="button" className="text-link" onClick={() => navigate('macro')}><Globe2 size={13}/> Explore data sources <CornerDownLeft size={12}/></button></div></div>
 }

@@ -20,6 +20,7 @@ export async function api(path, { method = 'GET', token, body, timeout = 8500 } 
     if (!response.ok) throw new Error(result.error || 'The request could not be completed.')
     return result
   } catch (error) {
+    if (error instanceof TypeError) throw new Error('Could not reach the hosted service. Check your connection and try again.', { cause: error })
     if (error.name === 'AbortError') throw new Error('The hosted service did not respond in time.', { cause: error })
     throw error
   } finally { clearTimeout(cancel) }

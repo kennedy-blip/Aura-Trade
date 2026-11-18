@@ -4,7 +4,7 @@ import { constants } from 'node:fs'
 import { resolve, join } from 'node:path'
 
 const mode = process.argv[2]
-if (!['debug', 'release'].includes(mode)) throw new Error('Pass debug or release.')
+if (!['debug', 'preview', 'release'].includes(mode)) throw new Error('Pass debug, preview or release.')
 const sdkHome = process.env.ANDROID_HOME || process.env.ANDROID_SDK_ROOT
 if (!sdkHome) throw new Error('Install Android SDK Platform 35 and Build Tools 35, then set ANDROID_HOME.')
 if (mode === 'release') for (const env of ['AURA_KEYSTORE', 'AURA_KEYSTORE_PASSWORD', 'AURA_KEY_ALIAS', 'AURA_KEY_PASSWORD']) if (!process.env[env]) throw new Error(`Set ${env} before building a signed Android release.`)
@@ -22,7 +22,7 @@ const signer = join(sdkHome, 'build-tools', tools[0], windows ? 'apksigner.bat' 
 await access(signer, constants.R_OK)
 exec(npm, ['run','android:sync'], process.cwd())
 await rm('android/app/src/main/assets/public/app', { recursive: true, force: true })
-const gradleTask = mode === 'release' ? 'assembleRelease' : 'assembleDebug'
+const gradleTask = `assemble${mode[0].toUpperCase()}${mode.slice(1)}`
 exec(windows ? 'gradlew.bat' : './gradlew', [gradleTask, '--no-daemon'], resolve('android'))
 const file = resolve(`android/app/build/outputs/apk/${mode}/app-${mode}.apk`)
 exec(signer, ['verify','--verbose',file], process.cwd())

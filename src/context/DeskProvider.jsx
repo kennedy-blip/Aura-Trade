@@ -5,6 +5,8 @@ import { marketEvents, snapshot } from '../data/markets.js'
 import { sentimentArchive } from '../data/sentiment.js'
 import { baseline, agentDefaults, validateSettings } from '../lib/models.js'
 import { api, hasHostedApi, previewRoles, supabase } from '../lib/client.js'
+import { useResearchConnection } from './useResearchConnection.js'
+import { useForeground, useMarketPulse } from './useMarketPulse.js'
 import { DeskContext } from './workspace.js'
 
 const defaultSettings = { model: baseline, agent: agentDefaults }
@@ -40,6 +42,10 @@ export default function DeskProvider({ children }) {
     setNotice({ message, kind })
     timer.current = setTimeout(() => setNotice(null), 4400)
   }, [])
+
+  const foreground = useForeground()
+  const pulse = useMarketPulse(scope, online, foreground, toast)
+  const researchConnection = useResearchConnection(scope, online)
 
   useEffect(() => { readyDB().catch(() => setStorageError(true)); return () => clearTimeout(timer.current) }, [])
   useEffect(() => {
@@ -83,11 +89,11 @@ export default function DeskProvider({ children }) {
     finally { busy.current = false; if (manual) setRefreshing(false) }
   }, [toast])
   useEffect(() => {
-    if (!online) return
+    if (!online || !foreground) return
     const start = setTimeout(() => refresh(), 1000)
     const interval = setInterval(() => refresh(), 15 * 60000)
     return () => { clearTimeout(start); clearInterval(interval) }
-  }, [refresh, online])
+  }, [refresh, online, foreground])
 
   const switchRole = (next) => {
     if (next === 'admin' && !previewRoles && (identity?.role !== 'admin' || !online)) { toast('A verified Lead Analyst account is required.', 'info'); return }
@@ -104,5 +110,5 @@ export default function DeskProvider({ children }) {
       setHostedSettings(result.settings)
     }
   }
-  return <DeskContext.Provider value={{ theme, setTheme, online, role, switchRole, scope, session, identity, canSwitchAdmin: previewRoles || (online && identity?.role === 'admin'), previewRoles, authEnabled: !!supabase, settings, saveDesk, rows, events, sentiment, feedMeta, refresh, refreshing, toast, notice, setNotice, storageError }}>{children}</DeskContext.Provider>
+  return <DeskContext.Provider value={{ theme, setTheme, online, role, switchRole, scope, session, identity, canSwitchAdmin: previewRoles || (online && identity?.role === 'admin'), previewRoles, authEnabled: !!supabase, settings, saveDesk, rows, events, sentiment, feedMeta, pulse, researchConnection, refresh, refreshing, toast, notice, setNotice, storageError }}>{children}</DeskContext.Provider>
 }

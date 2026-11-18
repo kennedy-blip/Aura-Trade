@@ -1,5 +1,6 @@
 @import 'tailwindcss';
 @import './modules.css';
+@import './pulse.css';
 
 @theme {
   --font-sans: 'Inter Variable', system-ui, sans-serif;
@@ -354,7 +355,7 @@ kbd { display: inline-flex; align-items: center; gap: 3px; color: var(--muted); 
   .bottom-nav { display: grid; }
   .toast { bottom: calc(70px + env(safe-area-inset-bottom)); }
 }
-.bottom-nav { position: fixed; z-index: 14; inset: auto 0 0; grid-template-columns: repeat(4, 1fr); padding: 5px 8px calc(5px + env(safe-area-inset-bottom)); background: color-mix(in srgb, var(--sidebar) 94%, transparent); backdrop-filter: blur(20px); border-top: 1px solid var(--line); }
+.bottom-nav { position: fixed; z-index: 14; inset: auto 0 0; grid-template-columns: repeat(5, 1fr); padding: 5px 8px calc(5px + env(safe-area-inset-bottom)); background: color-mix(in srgb, var(--sidebar) 94%, transparent); backdrop-filter: blur(20px); border-top: 1px solid var(--line); }
 .bottom-nav a { width: 100%; min-height: 47px; border-radius: 7px; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; color: var(--muted); font-size: 10px; font-weight: 600; }
 .bottom-nav a[aria-current='page'] { color: var(--mint); background: color-mix(in srgb, var(--mint-wash) 63%, transparent); }
 @media (max-width: 680px) {
